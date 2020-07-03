@@ -1,0 +1,17 @@
+# config file for parallel command
+# no blancs allowed around =
+
+# Subsequence size
+cut_size=10000
+
+# offset should be < Subsequence size
+offset=10000
+
+# max number of CPU
+nb_cpu=8
+
+# command to execute - keep space after command
+#  example : perl parallel_collapse0.1.pl
+#command=perl parallel_collapse0.1.pl
+#command=wc -l
+command=perl fasta_cutter_004.pl
