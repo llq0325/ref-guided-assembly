@@ -1,0 +1,139 @@
+##########################################
+#ALL PATH#
+##########################################
+fastqcOut=${workPathFiles}/FastQC_het
+trimOut=${workPathFiles}/Trim_het
+#trim reads#
+read1TrimPair=()
+read1TrimUnPair=()
+read2TrimPair=()
+read2TrimUnPair=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do
+    read1TrimPair[i]=${trimOut}/${shortNames[i]}_R1_trimPair.fastq 
+    read1TrimUnPair[i]=${trimOut}/${shortNames[i]}_R1_trimUnPair.fastq 
+    read2TrimPair[i]=${trimOut}/${shortNames[i]}_R2_trimPair.fastq 
+    read2TrimUnPair[i]=${trimOut}/${shortNames[i]}_R2_trimUnPair.fastq 
+  done
+readTrimUnPair=${trimOut}/${name}_trimUnpair_mod.fastq
+libUnpair=Unpair
+#mapped reads#
+mappedAll=()
+unmapped=()
+mapped=()
+mappedFiltered=()
+bowtieFailPair=()
+bowtieFailUnPair1=()
+bowtieFailUnPair2=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do 
+    mappedAll[i]=${workPath}/${shortNames[i]}_all.sorted.bam
+    unmapped[i]=${workPath}/${shortNames[i]}_unmapped.sorted.bam
+    mapped[i]=${workPath}/${shortNames[i]}.sorted.bam
+    mappedFiltered[i]=${workPath}/${shortNames[i]}.sorted.filtered.bam
+    bowtieFailPair[i]=${workPath}/${shortNames[i]}_failPair.fastq
+    bowtieFailUnPair1[i]=${workPath}/${shortNames[i]}_failUnPairR1.fastq
+    bowtieFailUnPair2[i]=${workPath}/${shortNames[i]}_failUnPairR2.fastq
+  done
+#superblock#
+mappedMerged=${workPath}/${name}_mate.sorted_mapped
+covFile=${workPath}/${name}_mate_coverage.txt
+blocks=${workPath}/blocks.txt
+superblocks=${workPath}/superblocks.txt
+abyssRes=${workPath}/abyssResults
+size=$(($(wc -l < ${superblocks})/$((NThreads))+1))
+#unmapped reads#
+unassFolder=${workPath}/Unassembled
+bowtieFailUnpairMerged=${workPath}/${name}_failUnp.fastq
+orgUnass=${unassFolder}/Unassembled_Abyss.fa
+unass500=${abyssUnass%.fa}_500.fa
+superblockSeq=${workPath}/deNovo_Superblocks.fa
+superblockSeq200=${superblockSeq%.fa}_200.fa
+#amos#
+amosFolder=${workPath}/AMOScmp
+superblockSeqAmos=${superblockSeq200%.fa}_Amos.afg
+supercontigs=Amos_supercontigs
+amosSupercontigs=${amosFolder}/${supercontigs}.fasta
+amosSupercontigsUnique=${amosSupercontigs%.fasta}_unique.fa
+supercontMappedAll=()
+supercontUnmapped=()
+supercontFailPair=()
+supercontFailUnpair=()
+supercontMappedFiltered=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do 
+    supercontMappedAll[i]=${amosFolder}/${shortNames[i]}_all.sorted.bam
+    supercontUnmapped[i]=${amosFolder}/${shortNames[i]}_unmapped.sorted.bam
+    supercontFailPair[i]=${amosFolder}/${shortNames[i]}_failPair.fastq
+    supercontFailUnpair[i]=${amosFolder}/${shortNames[i]}_failUnp.fastq
+    supercontMappedFiltered[i]=${amosFolder}/${shortNames[i]}.filtered.sorted.bam
+  done
+supercontFailUnpairMerged=${amosFolder}/${name}_failUnp.fastq
+supercontUnassFolder=${amosFolder}/Unassembled
+supercontSeqUnass=${supercontUnassFolder}/Unass-contigs_200.fa
+#correct#
+mergedFolder=${workPath}/merged_corr
+merged=${mergedFolder}/${name}_supercontSeq_Unass.fa
+mergedMappedAll=()
+mergedMappedFiltered=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do 
+    mergedMappedAll[i]=${mergedFolder}/${shortNames[i]}_all.sorted.bam
+    mergedMappedFiltered[i]=${mergedFolder}/${shortNames[i]}.filtered.sorted.bam
+  done
+mergedMappedMerged=${mergedFolder}/${name}.filtered_RG.sorted.bam
+mergedMappedMergedReal=${mergedMappedMerged%.bam}_realigned.bam
+mergedCorr=${merged%.fa}_corr.fq
+mergedCorrWN=${mergedCorr%.fq}WN.fa
+mergedCorrMappedAll=()
+mergedCorrMappedFiltered=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do 
+    mergedCorrMappedAll[i]=${mergedFolder}/${shortNames[i]}_corrWN_all.sorted.bam
+    mergedCorrMappedFiltered[i]=${mergedFolder}/${shortNames[i]}_corrWN.filtered.sorted.bam
+  done
+mergedCorrMappedFilteredMerged=${mergedFolder}/${name}_corrWN.filtered.sorted.bam
+
+  for i in ${!lib[*]}
+  do
+    if [ $i == 0 ]
+    then
+      libList=${lib[i]}
+      forwardReads=${read1TrimPair[i]}
+      reverseReads=${read2TrimPair[i]}
+    else
+      libList=${libList},${lib[i]}
+      forwardReads=${forwardReads},${read1TrimPair[i]}
+      reverseReads=${reverseReads},${read2TrimPair[i]}
+    fi      
+  done
+  
+  for i in ${!mateLib[*]}
+  do
+    if [ $i == 0 ]
+    then
+      mateLibList=${mateLib[i]}
+      mateForwardReads=${mateRead1TrimPair[i]}
+      mateReverseReads=${mateRead2TrimPair[i]}
+    else
+      mateLibList=${mateLibList},${mateLib[i]}
+      mateForwardReads=${mateForwardReads},${mateRead1TrimPair[i]}
+      mateReverseReads=${mateReverseReads},${mateRead2TrimPair[i]}
+    fi      
+  done
+
+#SOAP#
+scafFolder=${mergedFolder}/scaffold_gapClosed
+soapConf=${scafFolder}/soap.config
+scafFile=${name}_${kmer}
+scafSeq=${scafFolder}/${name}_scafSeq.fa
+scafMappedAll=()
+scafMappedFiltered=()
+  for i in ${!lib[*]}  #for all indexes in the array
+  do 
+    scafMappedAll[i]=${scafFolder}/${shortNames[i]}_all.sorted.bam
+    scafMappedFiltered[i]=${scafFolder}/${shortNames[i]}.filtered.sorted.bam
+  done
+##########################################
+#ALL PATH END#
+##########################################
