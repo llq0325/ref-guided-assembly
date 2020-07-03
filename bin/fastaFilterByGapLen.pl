@@ -1,4 +1,5 @@
 #! /usr/bin/perl
+####Langqing Liu, 2020####
 use strict;
 
 my $seq_fa = shift;
