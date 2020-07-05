@@ -2,13 +2,14 @@
 #########################################################
 #  Reference-guided de novo assembly - ABYSS
 # ====================================================
-# by Heidi Lischer, 2015/2016
+# Original by Heidi Lischer, 2015/2016
+# Modified by Langqing Liu, 2020
 #########################################################
 
 # set variables #########################################
 workPathFiles=/lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/SBSB
 ref=/lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/refseq/SCEB/SCEB.fa
-refRed=/lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/refseq/SCEB/cut_SCEB_10K.fa
+#refRed=/lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/refseq/SCEB/cut_SCEB_10K.fa
 primerFile=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/ref-guided-assembly-pipeline/AdapterSeq_new.fa
 primerFileMP=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/ref-guided-assembly-pipeline/AdapterSeqMP_new.fa
 
@@ -31,31 +32,13 @@ reads2=(reads2.fq.gz)
 # short names of libraries
 shortNames=(lib1) 
 
-
-# mate-pair libraries ---------------------
-#mateName=Aly_sim_Mate
-#mateLib=(3000 5000 7000 11000 15000)      # set insertion libraries
-#mateInsLow=(2000 4000 6000 9000 13000)    # lower bound of insertion size
-#mateInsHigh=(4000 6000 8000 13000 17000)  # upper bound of insertion size
-#mateLibsd=(400 400 400 400 400)           # sd of insertion size
-
-# list of files with forward reads according to lib array
-#mateReads1=(Aly_3kb_1.fq Aly_5kb_1.fq Aly_7kb_1.fq Aly_11kb_1.fq Aly_15kb_1.fq)
-# list of files with rewerse reads according to lib array
-#mateReads2=(Aly_3kb_2.fq Aly_5kb_2.fq Aly_7kb_2.fq Aly_11kb_2.fq Aly_15kb_2.fq)
-# short names of libraries
-#mateShortNames=(Aly_3kb Aly_5kb Aly_7kb Aly_11kb Aly_15kb)
-
-
 # set work path ---------------------------
 workPath=${workPathFiles}/${name}_abyss
+
 # log file
 log=${workPath}/log_${name}_abyss.txt
 
-
 # Programs --------------------------------
-
-#progPath=/home/hlischer/Programs
 progFastQC=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/FastQC/fastqc
 progTrimmomatic=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/Trimmomatic-0.32/trimmomatic-0.32.jar
 progSamtools=/cm/shared/apps/samtools/gcc/64/1.5/bin/samtools
@@ -77,15 +60,20 @@ progFastaToAmos=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bi
 progWriteSoapConfig=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/WriteSoapConfig.jar
 progFastaStats=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/FastaStats.jar
 progSplitSeqLowCov=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/SplitSeqLowCov.jar
-
+pregPrepREF=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/prepREF.sh
+pregfasta_cutter=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/fasta_cutter
+pregfastaFilterByGapLen=/lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/fastaFilterByGapLen.pl
 #########################################################
 
 
 
 # run pipeline ##########################################
-mkdir ${workPath}
 
-:<<BLOCK
+  #prepare reference
+  cd ${workPathFiles}
+  sh prepREF.sh ${pregfasta_cutter} ${pregfastaFilterByGapLen} ${ef}
+  refRed=${workPathFiles}/cut_ref/fasta_cutter/results/cut_filtered_${ref}
+
 # 1. Step: quality/adapter trimming and quality check:
 #######################################################
   # quality check ----------
@@ -100,11 +88,6 @@ mkdir ${workPath}
   do 
     ${progFastQC} -t ${NThreads} -o ${fastqcOut} ${reads1[i]} ${reads2[i]}
     echo "pass"
-  done  
-  
-  for i in ${!mateLib[*]}  #for all indexes in the array
-  do 
-    ${progFastQC} -t ${NThreads} -o ${fastqcOut} ${mateReads1[i]} ${mateReads2[i]}
   done  
   
   
@@ -134,22 +117,7 @@ mkdir ${workPath}
     echo "pass"
   done
   
-  mateRead1TrimPair=()
-  mateRead1TrimUnPair=()
-  mateRead2TrimPair=()
-  mateRead2TrimUnPair=()
-  for i in ${!mateLib[*]}  #for all indexes in the array
-  do
-    mateRead1TrimPair[i]=${trimOut}/${mateShortNames[i]}_R1_trimPair.fastq 
-    mateRead1TrimUnPair[i]=${trimOut}/${mateShortNames[i]}_R1_trimUnPair.fastq 
-    mateRead2TrimPair[i]=${trimOut}/${mateShortNames[i]}_R2_trimPair.fastq 
-    mateRead2TrimUnPair[i]=${trimOut}/${mateShortNames[i]}_R2_trimUnPair.fastq 
-    
-    java -jar ${progTrimmomatic} PE -threads ${NThreads} ${mateReads1[i]} ${mateReads2[i]} ${mateRead1TrimPair[i]} ${mateRead1TrimUnPair[i]} ${mateRead2TrimPair[i]} ${mateRead2TrimUnPair[i]} ILLUMINACLIP:${primerFileMP}:2:30:7:5:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:40 >> $log
-  done
-  
-  
-  # quality check ----------
+    # quality check ----------
   echo "quality check of trimmed reads..."
   echo "quality check of trimmed reads..." >> $log
   
@@ -159,10 +127,6 @@ mkdir ${workPath}
     echo "pass"
   done
   
-  for i in ${!mateLib[*]}  #for all indexes in the array
-  do 
-    ${progFastQC} -t ${NThreads} -o ${fastqcOut} ${mateRead1TrimPair[i]} ${mateRead2TrimPair[i]} ${mateRead1TrimUnPair[i]} ${mateRead2TrimUnPair[i]}
-  done
   
   
 
@@ -174,11 +138,11 @@ mkdir ${workPath}
   echo "prepare reference..." >> $log
   
   #remove scaffolds shorter than 10 kb
-  #java -jar ${progRemovShortSeq} -i $ref -o ${refRed}.fa -length 10000 
+  java -jar ${progRemovShortSeq} -i $ref -o ${refRed}.fa -length 10000 
   
   #create index files
-  #${progSamtools} faidx ${refRed}.fa
-  #java -jar ${progPicard} CreateSequenceDictionary R=${refRed}.fa O=${refRed}.dict
+  ${progSamtools} faidx ${refRed}.fa
+  java -jar ${progPicard} CreateSequenceDictionary R=${refRed}.fa O=${refRed}.dict
   
 
   # map reads against reference ----------
@@ -195,7 +159,7 @@ mkdir ${workPath}
   
   # index reference file  
   echo "run reference mapping..."  
-  #${progBowtie2}-build ${refRed}.fa ${refRed}
+  ${progBowtie2}-build ${refRed}.fa ${refRed}
   
   mappedAll=()
   unmapped=()
@@ -241,55 +205,13 @@ mkdir ${workPath}
       echo "--> ${mappedFiltered[i]}" >> $log
     
       #check insertion size
-      #java -jar ${progPicard} CollectInsertSizeMetrics R=${refRed}.fa I=${mapped[i]} O=${mapped[i]%.bam}_insertSize.txt HISTOGRAM_FILE=${mapped[i]%.bam}_insertSizeHist.pdf
+      java -jar ${progPicard} CollectInsertSizeMetrics R=${refRed}.fa I=${mapped[i]} O=${mapped[i]%.bam}_insertSize.txt HISTOGRAM_FILE=${mapped[i]%.bam}_insertSizeHist.pdf
     ) &
     let count+=1
     [[ $((count%${NThreads})) -eq 0 ]] && wait
   done
   wait
     
-  mateMappedAll=()
-  mateUnmapped=()
-  mateMapped=()
-  mateBowtieFailPair=()
-  mateBowtieFailUnPair1=()
-  mateBowtieFailUnPair2=()
-  count=0
-  for i in ${!mateLib[*]}  #for all indexes in the array
-  do 
-    mateMappedAll[i]=${workPath}/${mateShortNames[i]}_all.sorted.bam
-    mateMapped[i]=${workPath}/${mateShortNames[i]}.sorted.bam
-    mateUnmapped[i]=${workPath}/${mateShortNames[i]}_unmapped.sorted.bam
-    mateBowtieFailPair[i]=${workPath}/${mateShortNames[i]}_failPair.fastq
-    mateBowtieFailUnPair1[i]=${workPath}/${mateShortNames[i]}_failUnPairR1.fastq
-    mateBowtieFailUnPair2[i]=${workPath}/${mateShortNames[i]}_failUnPairR2.fastq      
-    ( 
-      ${progBowtie2} --fast-local -p 1 -q --phred33 -I ${mateInsLow[i]} -X ${mateInsHigh[i]} -x ${refRed} -1 ${mateRead1TrimPair[i]} -2 ${mateRead2TrimPair[i]} --rf | ${progSamtools} view -bS - | ${progSamtools} sort - -T ${mateShortNames[i]} -o ${mateMappedAll[i]}
-      ${progSamtools} index ${mateMappedAll[i]}
-    
-      #filter unmapped reads    
-      ${progSamtools} view -@ ${NThreads} -b -F 4 ${mateMappedAll[i]} > ${mateMapped[i]}
-      ${progSamtools} index -@ ${NThreads} ${mateMapped[i]}
-    
-      #get unmapped reads
-      ${progSamtools} view -@ ${NThreads} -b -f 4 ${mateMappedAll[i]} > ${mateUnmapped[i]}
-      ${progSamtools} view -@ ${NThreads} -b -f 9 ${mateUnmapped[i]} > ${mateUnmapped[i]%.sorted.bam}_pair.sorted.bam
-      java -jar ${progPicard} SamToFastq INPUT=${mateUnmapped[i]%.sorted.bam}_pair.sorted.bam FASTQ=${mateBowtieFailPair[i]%.fastq}.1.fastq SECOND_END_FASTQ=${mateBowtieFailPair[i]%.fastq}.2.fastq
-      rm ${mateUnmapped[i]%.sorted.bam}_pair.sorted.bam
-      ${progSamtools} view -b -F 8 -f 64 ${mateUnmapped[i]} | ${progBamtools} convert -format fastq -out ${mateBowtieFailUnPair1[i]} 
-      ${progSamtools} view -b -F 8 -f 128 ${mateUnmapped[i]} | ${progBamtools} convert -format fastq -out ${mateBowtieFailUnPair2[i]}
-    
-      ${progBamtools} stats -in ${mateMappedAll[i]} >> $log
-      echo "--> ${mateMappedAll[i]}" >> $log
-    
-      #check insertion size
-      #java -jar ${progPicard} CollectInsertSizeMetrics R=${refRed}.fa I=${mateMapped[i]} O=${mateMapped[i]%.bam}_insertSize.txt HISTOGRAM_FILE=${mateMapped[i]%.bam}_insertSizeHist.pdf
-    ) &
-    let count+=1
-    [[ $((count%${NThreads})) -eq 0 ]] && wait
-  done
-  wait  
-  
   #merge alignment files
   mappedMerged=${workPath}/${name}_mate.sorted_mapped
   ${progSamtools} merge -@ ${NThreads} ${mappedMerged}.bam ${mapped[*]} ${mateMapped[*]}
@@ -312,150 +234,9 @@ mkdir ${workPath}
 
  for i in ${!lib[*]}
  do
- echo "block"
  ${progSamtools} index -@ ${NThreads} ${mapped[i]}
  done 
-BLOCK
-##########################################
-#ALL PATH#
-##########################################
-fastqcOut=${workPathFiles}/FastQC_het
-trimOut=${workPathFiles}/Trim_het
-#trim reads#
-read1TrimPair=()
-read1TrimUnPair=()
-read2TrimPair=()
-read2TrimUnPair=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do
-    read1TrimPair[i]=${trimOut}/${shortNames[i]}_R1_trimPair.fastq 
-    read1TrimUnPair[i]=${trimOut}/${shortNames[i]}_R1_trimUnPair.fastq 
-    read2TrimPair[i]=${trimOut}/${shortNames[i]}_R2_trimPair.fastq 
-    read2TrimUnPair[i]=${trimOut}/${shortNames[i]}_R2_trimUnPair.fastq 
-  done
-readTrimUnPair=${trimOut}/${name}_trimUnpair_mod.fastq
-libUnpair=Unpair
-#mapped reads#
-mappedAll=()
-unmapped=()
-mapped=()
-mappedFiltered=()
-bowtieFailPair=()
-bowtieFailUnPair1=()
-bowtieFailUnPair2=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    mappedAll[i]=${workPath}/${shortNames[i]}_all.sorted.bam
-    unmapped[i]=${workPath}/${shortNames[i]}_unmapped.sorted.bam
-    mapped[i]=${workPath}/${shortNames[i]}.sorted.bam
-    mappedFiltered[i]=${workPath}/${shortNames[i]}.sorted.filtered.bam
-    bowtieFailPair[i]=${workPath}/${shortNames[i]}_failPair.fastq
-    bowtieFailUnPair1[i]=${workPath}/${shortNames[i]}_failUnPairR1.fastq
-    bowtieFailUnPair2[i]=${workPath}/${shortNames[i]}_failUnPairR2.fastq
-  done
-#superblock#
-mappedMerged=${workPath}/${name}_mate.sorted_mapped
-covFile=${workPath}/${name}_mate_coverage.txt
-blocks=${workPath}/blocks.txt
-superblocks=${workPath}/superblocks.txt
-abyssRes=${workPath}/abyssResults
-size=$(($(wc -l < ${superblocks})/$((NThreads))+1))
-#unmapped reads#
-unassFolder=${workPath}/Unassembled
-bowtieFailUnpairMerged=${workPath}/${name}_failUnp.fastq
-orgUnass=${unassFolder}/Unassembled_Abyss.fa
-unass500=${abyssUnass%.fa}_500.fa
-superblockSeq=${workPath}/deNovo_Superblocks.fa
-superblockSeq200=${superblockSeq%.fa}_200.fa
-#amos#
-amosFolder=${workPath}/AMOScmp
-superblockSeqAmos=${superblockSeq200%.fa}_Amos.afg
-supercontigs=Amos_supercontigs
-amosSupercontigs=${amosFolder}/${supercontigs}.fasta
-amosSupercontigsUnique=${amosSupercontigs%.fasta}_unique.fa
-supercontMappedAll=()
-supercontUnmapped=()
-supercontFailPair=()
-supercontFailUnpair=()
-supercontMappedFiltered=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    supercontMappedAll[i]=${amosFolder}/${shortNames[i]}_all.sorted.bam
-    supercontUnmapped[i]=${amosFolder}/${shortNames[i]}_unmapped.sorted.bam
-    supercontFailPair[i]=${amosFolder}/${shortNames[i]}_failPair.fastq
-    supercontFailUnpair[i]=${amosFolder}/${shortNames[i]}_failUnp.fastq
-    supercontMappedFiltered[i]=${amosFolder}/${shortNames[i]}.filtered.sorted.bam
-  done
-supercontFailUnpairMerged=${amosFolder}/${name}_failUnp.fastq
-supercontUnassFolder=${amosFolder}/Unassembled
-supercontSeqUnass=${supercontUnassFolder}/Unass-contigs_200.fa
-#correct#
-mergedFolder=${workPath}/merged_corr
-merged=${mergedFolder}/${name}_supercontSeq_Unass.fa
-mergedMappedAll=()
-mergedMappedFiltered=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    mergedMappedAll[i]=${mergedFolder}/${shortNames[i]}_all.sorted.bam
-    mergedMappedFiltered[i]=${mergedFolder}/${shortNames[i]}.filtered.sorted.bam
-  done
-mergedMappedMerged=${mergedFolder}/${name}.filtered_RG.sorted.bam
-mergedMappedMergedReal=${mergedMappedMerged%.bam}_realigned.bam
-mergedCorr=${merged%.fa}_corr.fq
-mergedCorrWN=${mergedCorr%.fq}WN.fa
-mergedCorrMappedAll=()
-mergedCorrMappedFiltered=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    mergedCorrMappedAll[i]=${mergedFolder}/${shortNames[i]}_corrWN_all.sorted.bam
-    mergedCorrMappedFiltered[i]=${mergedFolder}/${shortNames[i]}_corrWN.filtered.sorted.bam
-  done
-mergedCorrMappedFilteredMerged=${mergedFolder}/${name}_corrWN.filtered.sorted.bam
 
-  for i in ${!lib[*]}
-  do
-    if [ $i == 0 ]
-    then
-      libList=${lib[i]}
-      forwardReads=${read1TrimPair[i]}
-      reverseReads=${read2TrimPair[i]}
-    else
-      libList=${libList},${lib[i]}
-      forwardReads=${forwardReads},${read1TrimPair[i]}
-      reverseReads=${reverseReads},${read2TrimPair[i]}
-    fi      
-  done
-  
-  for i in ${!mateLib[*]}
-  do
-    if [ $i == 0 ]
-    then
-      mateLibList=${mateLib[i]}
-      mateForwardReads=${mateRead1TrimPair[i]}
-      mateReverseReads=${mateRead2TrimPair[i]}
-    else
-      mateLibList=${mateLibList},${mateLib[i]}
-      mateForwardReads=${mateForwardReads},${mateRead1TrimPair[i]}
-      mateReverseReads=${mateReverseReads},${mateRead2TrimPair[i]}
-    fi      
-  done
-
-#SOAP#
-scafFolder=${mergedFolder}/scaffold_gapClosed
-soapConf=${scafFolder}/soap.config
-scafFile=${name}_${kmer}
-scafSeq=${scafFolder}/${name}_scafSeq.fa
-scafMappedAll=()
-scafMappedFiltered=()
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    scafMappedAll[i]=${scafFolder}/${shortNames[i]}_all.sorted.bam
-    scafMappedFiltered[i]=${scafFolder}/${shortNames[i]}.filtered.sorted.bam
-  done
-##########################################
-#ALL PATH END#
-##########################################
-:<<'BLOCK'
 # 3. Step: do deNovo assembly within superblocks
 #######################################################
   echo "deNovo assembly within superblocks..."
@@ -570,16 +351,11 @@ scafMappedFiltered=()
       fi      
     done
     #printf "  unset NSLOTS LSB_DJOB_NUMPROC SLURM_NTASKS\n" >> ${fileout}
-    #printf "  /lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/abyss-2.1.2/exe/ABYSS -k41 -q3 --coverage-hist=coverage.hist -s sblock\${blockNb}_41-bubbles.fa -o sblock\${blockNb}_41-1.fa subseq_lib1_R1.fastq subseq_lib1_R2.fastq\n" >> ${fileout}
-    #printf "  /lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/abyss-2.1.2/exe/ABYSS -k51 -q3 --coverage-hist=coverage.hist -s sblock\${blockNb}_51-bubbles.fa -o sblock\${blockNb}_51-1.fa subseq_lib1_R1.fastq subseq_lib1_R2.fastq\n" >> ${fileout}
-    #printf "  /lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/abyss-2.1.2/exe/ABYSS -k61 -q3 --coverage-hist=coverage.hist -s sblock\${blockNb}_61-bubbles.fa -o sblock\${blockNb}_61-1.fa subseq_lib1_R1.fastq subseq_lib1_R2.fastq\n" >> ${fileout}
-    #printf "  /lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/abyss-2.1.2/exe/ABYSS -k71 -q3 --coverage-hist=coverage.hist -s sblock\${blockNb}_71-bubbles.fa -o sblock\${blockNb}_71-1.fa subseq_lib1_R1.fastq subseq_lib1_R2.fastq\n" >> ${fileout}
-    #printf "  /lustre/nobackup/WUR/ABGC/liu194/analysis/Ref-Guideed-assemby/bin/abyss-2.1.2/exe/ABYSS -k81 -q3 --coverage-hist=coverage.hist -s sblock\${blockNb}_81-bubbles.fa -o sblock\${blockNb}_81-1.fa subseq_lib1_R1.fastq subseq_lib1_R2.fastq\n" >> ${fileout}
-    printf "  ${progAbyss}-pe-single k=41 name=sblock\${blockNb}_41 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
-    printf "  ${progAbyss}-pe-single k=51 name=sblock\${blockNb}_51 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
-    printf "  ${progAbyss}-pe-single k=61 name=sblock\${blockNb}_61 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
-    printf "  ${progAbyss}-pe-single k=71 name=sblock\${blockNb}_71 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
-    printf "  ${progAbyss}-pe-single k=81 name=sblock\${blockNb}_81 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
+    printf "  ${progAbyss}-pe k=41 name=sblock\${blockNb}_41 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
+    printf "  ${progAbyss}-pe k=51 name=sblock\${blockNb}_51 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
+    printf "  ${progAbyss}-pe k=61 name=sblock\${blockNb}_61 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
+    printf "  ${progAbyss}-pe k=71 name=sblock\${blockNb}_71 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
+    printf "  ${progAbyss}-pe k=81 name=sblock\${blockNb}_81 lib=\"${abyssLib}\" ${abyssPaired}\n" >> ${fileout}
     printf "  if [ ! -f sblock\${blockNb}_61-contigs.fa ]\n" >> ${fileout}
     printf "  then\n" >> ${fileout}
     printf "    echo \"\$blockNb abyss failed\" >> $logout\n" >> ${fileout}
@@ -814,9 +590,9 @@ scafMappedFiltered=()
   mkdir ${supercontUnassFolder}/k${kmer}
   cd ${supercontUnassFolder}/k${kmer}
   printf "#"'!'"/bin/bash\n" > runAbyss_k${kmer}.sh
-  printf "source /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/bin/activate /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/envs/ABYSS\n" >> runAbyss_k${kmer}.sh
-  printf "abyss-pe k=${kmer} name=Unass_${kmer} lib=\"${abyssLib}\" ${abyssPaired} se=${supercontFailUnpairMerged}\n" >> runAbyss_k${kmer}.sh
-  printf "source  /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/bin/deactivate\n" >> runAbyss_k${kmer}.sh
+  #printf "source /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/bin/activate /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/envs/ABYSS\n" >> runAbyss_k${kmer}.sh
+  printf "${progAbyss}-pe k=${kmer} name=Unass_${kmer} lib=\"${abyssLib}\" ${abyssPaired} se=${supercontFailUnpairMerged}\n" >> runAbyss_k${kmer}.sh
+  #printf "source  /lustre/nobackup/WUR/ABGC/liu194/analysis/bin/miniconda3/bin/deactivate\n" >> runAbyss_k${kmer}.sh
   chmod +x runAbyss_k${kmer}.sh
   ./runAbyss_k${kmer}.sh
   cd ${supercontUnassFolder}
@@ -952,94 +728,68 @@ BLOCK
   java -jar ${progFastaStats} -i ${mergedCorrWN%.fa}_splitFiltered.fa -min 200 >> $log
   
 
+# optional run RaGOO
+########################################################## 
 
-# 7. Step: scaffolding and gap closing
-#######################################################
-  echo "scaffolding..." 
-  echo "scaffolding..." >> $log
+# 7. run AlignGraph for reference guided scallfolding 
+########################################################## 
+  echo "run AlignGraph..." 
+  echo "run AlignGraph..." >> $log
   
-  scafFolder=${mergedFolder}/scaffold_gapClosed
-  mkdir $scafFolder
-  cd $scafFolder
-  
-  for i in ${!lib[*]}
-  do
-    if [ $i == 0 ]
-    then
-      libList=${lib[i]}
-      forwardReads=${read1TrimPair[i]}
-      reverseReads=${read2TrimPair[i]}
-    else
-      libList=${libList},${lib[i]}
-      forwardReads=${forwardReads},${read1TrimPair[i]}
-      reverseReads=${reverseReads},${read2TrimPair[i]}
-    fi      
-  done
-  
-  for i in ${!mateLib[*]}
-  do
-    if [ $i == 0 ]
-    then
-      mateLibList=${mateLib[i]}
-      mateForwardReads=${mateRead1TrimPair[i]}
-      mateReverseReads=${mateRead2TrimPair[i]}
-    else
-      mateLibList=${mateLibList},${mateLib[i]}
-      mateForwardReads=${mateForwardReads},${mateRead1TrimPair[i]}
-      mateReverseReads=${mateReverseReads},${mateRead2TrimPair[i]}
-    fi      
-  done
-  
-  #write config file
-  soapConf=${scafFolder}/soap.config
-  #java -jar ${progWriteSoapConfig} -insLength ${libList} -r1 ${forwardReads} -r2 ${reverseReads} -max ${maxReadLength} -ru 2 -mateInsLength ${mateLibList} -mateR1 ${mateForwardReads} -mateR2 ${mateReverseReads} -mateRu 2 -rank -o ${soapConf}
-  scafFile=${name}_${kmer}
-  java -jar ${progWriteSoapConfig} -insLength ${libList} -r1 ${forwardReads} -r2 ${reverseReads} -max ${maxReadLength} -ru 2 -rank -o ${soapConf}
-  ${progSoapdenovo2}/prepare/finalFusion -D -c ${mergedCorrWN%.fa}_splitFiltered.fa -K ${kmer} -g ${scafFile} -p ${NThreads}
-  ${progSoapdenovo2}/SOAPdenovo-127mer map -s ${soapConf} -g ${scafFile} -p ${NThreads}
-  ${progSoapdenovo2}/SOAPdenovo-127mer scaff -g ${scafFile} -p ${NThreads} -F
-   
-   
-  #remove scaffolds < 200 bp ----------
-  scafSeq=${scafFolder}/${name}_scafSeq.fa
-  echo ${scafFile}.scafSeq >> $log
-  java -jar ${progRemovShortSeq} -i ${scafFile}.scafSeq -o ${scafSeq} -length 200 >> $log
-  java -jar ${progRemovShortSeq} -i ${scafSeq} -o ${scafSeq%.fa}_500.fa -length 500 >> $log
-  java -jar ${progRemovShortSeq} -i ${scafSeq} -o ${scafSeq%.fa}_1000.fa -length 1000 >> $log
- 
-  #get statistics
-  echo ${scafSeq} >> $log
-  java -jar ${progFastaStats} -i ${scafSeq} -min 200 >> $log
-  java -jar ${progFastaStats} -i ${scafSeq} -min 500 >> $log
-  java -jar ${progFastaStats} -i ${scafSeq} -min 1000 >> $log
+  AlignGraphFolder=${workPath}/AlignGraph
+  mkdir $AlignGraphFolder
+  cd $AlignGraphFolder
+  #convet fastq to fasta
+  ${progseqtk} seq -a ${read1TrimPair[i]} > reads1.fa
+  ${progseqtk} seq -a ${read2TrimPair[i]} > reads2.fa
+  #run AlignGraph
+  ${progAlignGraph} \
+  --read1 reads1.fa --read2 reads2.fa \
+  --contig ${mergedCorrWN%.fa}_splitFiltered.fa \
+  --genome ${ref} \
+  --distanceLow ${insLow} --distanceHigh ${insHight} --fastMap \
+  --extendedContig extendedContigs.fa --remainingContig remainingContigs.fa \
+  --misassemblyRemoval
 
-  #map reads against scaffolds
-  ${progBowtie2}-build ${scafSeq} ${scafSeq%.fa}
-   
-  scafMappedAll=()
-  scafMappedFiltered=()
-  count=0
-  for i in ${!lib[*]}  #for all indexes in the array
-  do 
-    scafMappedAll[i]=${scafFolder}/${shortNames[i]}_all.sorted.bam
-    scafMappedFiltered[i]=${scafFolder}/${shortNames[i]}.filtered.sorted.bam
-    (
-      ${progBowtie2} --sensitive -p ${NThreads} -q --phred33 -I ${insLow[i]} -X ${insHigh[i]} -x ${scafSeq%.fa} -1 ${read1TrimPair[i]} -2 ${read2TrimPair[i]} -S bowtie2.sam
-      ${progSamtools} view -@ ${NThreads} -bS bowtie2.sam > bowtie2.bam
-      ${progSamtools} sort -@ ${NThreads} -T ${shortNames[i]} -o ${scafMappedAll[i]} bowtie2.bam
-      ${progSamtools} index -@ ${NThreads} ${scafMappedAll[i]}
+  cat extendedContigs.fa remainingContigs.fa > AlignGraph_scallfolding.fa
 
-      ${progBamtools} stats -in ${scafMappedAll[i]} >> $log
-      echo "--> ${scafMappedAll[i]}" >> $log
-    
-      #filter for mapping quality >=10    
-      ${progSamtools} view -@ ${NThreads} -b -F 4 -q 10 ${scafMappedAll[i]} > ${scafMappedFiltered[i]}
-    
-      ${progBamtools} stats -in ${scafMappedFiltered[i]} >> $log
-      echo "--> ${scafMappedFiltered[i]}" >> $log
-    ) &
-    let count+=1
-    [[ $((count%${NThreads})) -eq 0 ]] && wait
+# 8. run pilon 
+########################################################## 
+  echo "run pilon..." 
+  echo "run pilon..." >> $log
+
+  pilonFolder=${workPath}/pilon
+  mkdir $pilonFolder
+  cd $pilonFolder
+
+  bwa index /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/bin/RECORD/mod_PYGMY/results/edited_ref/edited_ref.fa
+
+  bwa mem -t 20 /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/bin/RECORD/mod_PYGMY/results/edited_ref/edited_ref.fa /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/PYGMY/Trim_het/lib1_R1_trimPair.fastq /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/PYGMY/Trim_het/lib1_R2_trimPair.fastq > reads.sam
+
+  #only keep mapped reads
+  samtools view -b -F 4 reads.sam -@ ${NThreads} > reads.bam
+
+  samtools sort reads.bam -@ ${NThreads} > reads_sorted.all.bam
+
+  samtools index reads_sorted.all.bam
+
+  #######subset chromosomes
+  CHR=`cat CHR.list`
+
+  for i in $CHR;do
+
+  samtools view -b -@ ${NThreads} reads_sorted.all.bam ${i} > ${i}.bam
+
+  samtools index ${i}.bam
+
+  java -jar -Xmx200G /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/bin/pilon-1.23.jar --genome /lustre/nobackup/WUR/ABGC/liu194/analysis/SUS_PAN/Annotation/PYGMY/Split_chr/${i}.fa --frags ${i}.bam --output corrected_${i}.fasta --outdir ./ --changes --fix all --threads ${NThreads}
+
   done
-  wait
-  
+
+###################################
+  echo "FINISH!!!!!! ENJOY YOUR NEW GENOME ^_^" 
+  echo "-. .-.   .-. .-.   .-. .-.   ."
+  echo "  \   \ /   \   \ /   \   \ /"
+  echo " / \   \   / \   \   / \   \"
+  echo "~   \`-~ \`-\`   \`-~ \`-\`   \`-~ \`-"
+  echo "FINISH!!!!!!  ^_^" >> $log
